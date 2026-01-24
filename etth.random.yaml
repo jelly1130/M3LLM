@@ -1,0 +1,77 @@
+program: run.py
+method: grid
+metric:
+  goal: minimize
+  name: best_test_loss
+parameters:
+  task_name:
+    value: long_term_forecast
+  is_training:
+    value: 1
+  root_path:
+    value: ./dataset/ETT-small/
+  data_path:
+    value: ETTh1.csv
+  model_id:
+    value: ETTh1_672_96
+  model:
+    value: M3LLM_Qwen
+  data:
+    value: ETTh1
+  seq_len:
+    value: 672
+  label_len:
+    value: 576
+  token_len:
+    value: 96
+  test_seq_len:
+    value: 672
+  test_label_len:
+    value: 576
+  test_pred_len:
+    value: 96
+  batch_size:
+    values: [80, 96, 100, 120, 128, 160, 192, 200]
+  des:
+    value: 'Exp'
+  itr:
+    value: 1
+  multi_var:
+    value: True
+  mix_embeds:
+    value: True
+  mix_embeds_type:
+    value: v11
+  learning_rate:
+    values: [0.00085, 0.0009, 0.00095]
+  use_amp:
+    value: True
+  mlp_hidden_layers:
+    value: 0
+  mlp_activation:
+    value: relu
+  cosine:
+    value: True
+  drop_last:
+    value: True
+  train_epochs:
+    value: 200
+  patience:
+    value: 20
+  dropout:
+    value: 0.1
+  moving_avg:
+    value: 19
+  tmax:
+    value: 7
+  gpu:
+    value: 0
+  weight_decay:
+    value: 0.000005
+  wandb:
+    value: True
+early_terminate:
+  type: hyperband
+  s: 2
+  eta: 3
+  max_iter: 27
