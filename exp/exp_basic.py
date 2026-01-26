@@ -1,4 +1,4 @@
-from models import M3LLM_Llama, M3LLM_Gpt2, M3LLM_Opt_1b, M3LLM_Qwen
+from models import M3LLM_Llama3, M3LLM_Llama, M3LLM_Gpt2, M3LLM_Opt_1b, M3LLM_Qwen
 
 
 class Exp_Basic(object):
@@ -6,6 +6,7 @@ class Exp_Basic(object):
         self.args = args
         self.model_dict = {
             'M3LLM_Llama': M3LLM_Llama,
+            'M3LLM_Llama3': M3LLM_Llama3,
             'M3LLM_Gpt2': M3LLM_Gpt2,
             'M3LLM_Opt_1b': M3LLM_Opt_1b,
             'M3LLM_Qwen': M3LLM_Qwen
