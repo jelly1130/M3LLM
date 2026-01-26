@@ -11,6 +11,9 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+class Dataset_ETT_minute(Dataset):
+    pass
+
 
 class Dataset_ETT_hour(Dataset):
     def __init__(self, root_path, flag='train', size=None, data_path='ETTh1.csv',
@@ -457,7 +460,7 @@ class Dataset_Preprocess(Dataset):
         start = datetime.datetime.strptime(self.data_stamp[s_begin], "%Y-%m-%d %H:%M:%S")
         if self.data_set_type in ['traffic', 'electricity', 'ETTh1', 'ETTh2']:
             end = (start + datetime.timedelta(hours=self.token_len-1)).strftime("%Y-%m-%d %H:%M:%S")
-        elif self.data_set_type == 'weather':
+        elif self.data_set_type in ['weather', 'PEMS']:
             end = (start + datetime.timedelta(minutes=10*(self.token_len-1))).strftime("%Y-%m-%d %H:%M:%S")
         elif self.data_set_type in ['ETTm1', 'ETTm2']:
             end = (start + datetime.timedelta(minutes=15*(self.token_len-1))).strftime("%Y-%m-%d %H:%M:%S")
