@@ -266,7 +266,7 @@ class Model(nn.Module):
             self.down_sampling_window = configs.down_sampling_window
             self.down_sampling_method = configs.down_sampling_method
             self.pdm_blocks = nn.ModuleList([PastDecomposableMixing(configs)
-                                    for _ in range(1)]) # NOTE( ): using 1 pdm blocks
+                                    for _ in range(self.pdm_blocks_num)]) # NOTE( ): using 1 pdm blocks
         if self.mix:
             self.add_scale = nn.Parameter(torch.ones([]))
             if self.mix_embeds_type == 'v6':
@@ -352,7 +352,7 @@ class Model(nn.Module):
                                   kernel_size=3, padding=padding,
                                   stride=self.down_sampling_window,
                                   padding_mode='circular',
-                                  bias=False)
+                                  bias=False).cuda(self.device)
         else:
             return x_enc, x_mark_enc
         # B,T,C -> B,C,T
@@ -442,7 +442,7 @@ class Model(nn.Module):
                             times_embeds = 0.5 * torch.sum(sum_square - square_sum, dim=3, keepdim=True) # [bs x token_num x hidden_dim_of_llm x 1]
                             times_embeds = times_embeds.permute(0, 1, 3, 2) # [bs x token_num x 1 x hidden_dim_of_llm]
                             times_embeds = times_embeds.repeat_interleave(n_vars, dim=2) # [bs x token_num x n_vars x hidden_dim_of_llm]
-                        elif self.mix_embeds_type == ['v9', 'v11']: # MoE
+                        elif self.mix_embeds_type in ['v9', 'v11']: # MoE
                             times_embeds_output = []
                             for hidden_vector in self.hidden_vector_for_cross_list:
                                 if __mydebug__: print(f'v9:0 {hidden_vector.shape=}, {times_embeds.shape=}')
@@ -605,7 +605,7 @@ class Model(nn.Module):
             ori_times_embeds = times_embeds
             times_embeds = times_embeds.reshape(bs, n_vars, token_num, -1) # [bs x n_vars x token_num x hidden_dim_of_llm]
             times_embeds = times_embeds.permute(0, 2, 3, 1) # [bs x token_num x hidden_dim_of_llm x n_vars]
-            if self.mix_embeds_type == ['v9', 'v11']: # MoE
+            if self.mix_embeds_type in ['v9', 'v11']: # MoE
                 times_embeds_output = []
                 for hidden_vector in self.hidden_vector_for_cross_list:
                     if __mydebug__: print(f'v9:0 {hidden_vector.shape=}, {times_embeds.shape=}')
@@ -671,7 +671,9 @@ class Model(nn.Module):
         return dec_out
     
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
-        if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast':
+        if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast' or self.task_name == 'zero_shot_forecast':
             return self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
         elif self.task_name == 'classification':
             return self.classification(x_enc, x_mark_enc, x_dec, x_mark_dec)
+        else:
+            raise ValueError(f'Tasks {self.task_name} implemented yet')
