@@ -52,7 +52,76 @@ class Exp_Zero_Shot_Forecast(Exp_Basic):
         elif loss_name == 'SMAPE':
             return zero_shot_smape_loss()
 
-    def train(self, setting):
+    def vali(self, vali_data, vali_loader, criterion, wandb=None):
+        total_loss = []
+        self.model.eval()
+        with torch.no_grad():
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+                batch_x = batch_x.float().to(self.device)
+                batch_y = batch_y.float()
+                batch_x_mark = batch_x_mark.float().to(self.device)
+                batch_y_mark = batch_y_mark.float().to(self.device)
+                
+                if self.args.use_amp:
+                    with torch.cuda.amp.autocast():
+                        outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
+                else:
+                    outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
+
+                pred = outputs.detach().cpu()
+                true = batch_y.detach().cpu()
+
+                loss = criterion(pred, true)
+                total_loss.append(loss)
+        total_loss = np.average(total_loss)
+        self.model.train()
+        return total_loss
+
+    def vali2(self, vali_data, vali_loader, criterion, wandb=None):
+        total_loss = []
+        count= []
+        self.model.eval()
+        with torch.no_grad():
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+                batch_x = batch_x.float().to(self.device)
+                batch_y = batch_y.float()
+                batch_x_mark = batch_x_mark.float().to(self.device)
+                batch_y_mark = batch_y_mark.float().to(self.device)
+                
+                inference_steps = self.args.test_pred_len // self.args.token_len
+                dis = self.args.test_pred_len - inference_steps * self.args.token_len
+                if dis != 0:
+                    inference_steps += 1
+                pred_y = []
+
+                for j in range(inference_steps):
+                    if len(pred_y) != 0:
+                        batch_x = torch.cat([batch_x[:, self.args.token_len:, :], pred_y[-1]], dim=1)
+                    if self.args.use_amp:
+                        with torch.cuda.amp.autocast():
+                            outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
+                    else:
+                        outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
+                    pred_y.append(outputs[:, -self.args.token_len:, :])
+                pred_y = torch.cat(pred_y, dim=1)
+                if dis != 0:
+                    pred_y = pred_y[:, :-dis, :]
+                
+                outputs = pred_y
+                batch_y = batch_y[:, -self.args.test_pred_len:, :].to(self.device)
+
+                pred = outputs.detach().cpu()
+                true = batch_y.detach().cpu()
+
+                loss = criterion(pred, true)
+                total_loss.append(loss)
+                count.append(batch_x.shape[0])
+        total_loss = np.average(total_loss, weights=count)
+        self.model.train()
+        
+        return total_loss    
+    
+    def train(self, setting, wandb=None):
         train_data, train_loader = self._get_data(flag='train')
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
@@ -61,6 +130,10 @@ class Exp_Zero_Shot_Forecast(Exp_Basic):
         test_data2, test_loader2 = self._get_data(flag='test')
         
         path = os.path.join(self.args.checkpoints, setting)
+        if wandb is not None:
+            cuda_id = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+            path = os.path.join(self.args.checkpoints, f'wandb_{self.args.data_path}_{cuda_id}')
+            best_test_loss2 = None
         if not os.path.exists(path):
             os.makedirs(path)
 
@@ -89,9 +162,9 @@ class Exp_Zero_Shot_Forecast(Exp_Basic):
 
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, None, None, None)
+                        outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
                 else:
-                    outputs = self.model(batch_x, None, None, None)
+                    outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
 
                 loss = criterion(outputs, batch_y)
                 train_loss.append(loss.item())
@@ -114,11 +187,23 @@ class Exp_Zero_Shot_Forecast(Exp_Basic):
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
-            vali_loss = self.vali(vali_data, vali_loader, criterion)  
-            test_loss = self.vali2(test_data, test_loader, criterion)    # test_loss indicates the result on the source datasets, 
-            test_loss2 = self.vali2(test_data2, test_loader2, criterion) # test_loss2 indicates the result on the taregt datasets. The latter is what we concerned in zero-shot forecasting​.
+            vali_loss = self.vali(vali_data, vali_loader, criterion, wandb=wandb)  
+            test_loss = self.vali2(test_data, test_loader, criterion, wandb=wandb)    # test_loss indicates the result on the source datasets, 
+            test_loss2 = self.vali2(test_data2, test_loader2, criterion, wandb=wandb) # test_loss2 indicates the result on the taregt datasets. The latter is what we concerned in zero-shot forecasting​.
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f} Test Loss2: {5:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss, test_loss2))
+            if wandb is not None:
+                if best_test_loss2 is None:
+                    best_test_loss2 = test_loss2
+                else:
+                    best_test_loss2 = min(best_test_loss2, test_loss2)
+                wandb.log({
+                    "train_loss": train_loss,
+                    "vali_loss": vali_loss,
+                    "test_loss": test_loss,
+                    "test_loss2": test_loss2,
+                    "best_test_loss2": best_test_loss2
+                })
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
@@ -132,75 +217,9 @@ class Exp_Zero_Shot_Forecast(Exp_Basic):
         best_model_path = path + '/' + f'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path), strict=False)
 
-        return self.model
+        return self.model  
 
-    def vali(self, vali_data, vali_loader, criterion):
-        total_loss = []
-        self.model.eval()
-        with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
-                batch_x = batch_x.float().to(self.device)
-                batch_y = batch_y.float()
-                
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, None, None, None)
-                else:
-                    outputs = self.model(batch_x, None, None, None)
-
-                pred = outputs.detach().cpu()
-                true = batch_y.detach().cpu()
-
-                loss = criterion(pred, true)
-                total_loss.append(loss)
-        total_loss = np.average(total_loss)
-        self.model.train()
-        
-        return total_loss
-
-    def vali2(self, vali_data, vali_loader, criterion):
-        total_loss = []
-        count= []
-        self.model.eval()
-        with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
-                batch_x = batch_x.float().to(self.device)
-                batch_y = batch_y.float()
-                
-                inference_steps = self.args.test_pred_len // self.args.token_len
-                dis = self.args.test_pred_len - inference_steps * self.args.token_len
-                if dis != 0:
-                    inference_steps += 1
-                pred_y = []
-
-                for j in range(inference_steps):
-                    if len(pred_y) != 0:
-                        batch_x = torch.cat([batch_x[:, self.args.token_len:, :], pred_y[-1]], dim=1)
-                    if self.args.use_amp:
-                        with torch.cuda.amp.autocast():
-                            outputs = self.model(batch_x, None, None, None)
-                    else:
-                        outputs = self.model(batch_x, None, None, None)
-                    pred_y.append(outputs[:, -self.args.token_len:, :])
-                pred_y = torch.cat(pred_y, dim=1)
-                if dis != 0:
-                    pred_y = pred_y[:, :-dis, :]
-                
-                outputs = pred_y
-                batch_y = batch_y[:, -self.args.test_pred_len:, :].to(self.device)
-
-                pred = outputs.detach().cpu()
-                true = batch_y.detach().cpu()
-
-                loss = criterion(pred, true)
-                total_loss.append(loss)
-                count.append(batch_x.shape[0])
-        total_loss = np.average(total_loss, weights=count)
-        self.model.train()
-        
-        return total_loss    
-
-    def test(self, setting, test=0):
+    def test(self, setting, test=0, wandb=None):
         if test:
             print('loading model')
             setting = self.args.test_dir
@@ -231,9 +250,9 @@ class Exp_Zero_Shot_Forecast(Exp_Basic):
                         batch_x = torch.cat([batch_x[:, self.args.token_len:, :], pred_y[-1]], dim=1)
                     if self.args.use_amp:
                         with torch.cuda.amp.autocast():
-                            outputs = self.model(batch_x, None, None, None)
+                            outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
                     else:
-                        outputs = self.model(batch_x, None, None, None)
+                        outputs = self.model(batch_x, batch_x_mark, None, batch_y_mark)
                     pred_y.append(outputs[:, -self.args.token_len:, :])
                 pred_y = torch.cat(pred_y, dim=1)
                 if dis != 0:
