@@ -3,7 +3,7 @@ mix_embeds=True
 mlp_hidden_layers=0
 multi_scale=True
 multi_var=True
-mix_embeds_type=v1
+mix_embeds_type=v11
 gpu=0
 
 # training one model with a context length
@@ -32,6 +32,10 @@ python -u run.py \
   --mix_embeds $mix_embeds \
   --multi_var $multi_var \
   --multi_scale $multi_scale \
+  --down_sampling_layers 3 \
+  --down_sampling_window 2 \
+  --down_sampling_method avg \
+  --pdm_blocks_num 1 \
   --mix_embeds_type $mix_embeds_type \
   --patience 10 \
   --weight_decay 0.000005 \
@@ -65,6 +69,10 @@ python -u run.py \
   --mix_embeds $mix_embeds \
   --multi_var $multi_var \
   --multi_scale $multi_scale \
+  --down_sampling_layers 3 \
+  --down_sampling_window 2 \
+  --down_sampling_method avg \
+  --pdm_blocks_num 1 \
   --mix_embeds_type $mix_embeds_type \
   --patience 10 \
   --weight_decay 0.000005 \
