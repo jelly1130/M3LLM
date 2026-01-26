@@ -117,6 +117,7 @@ if __name__ == '__main__':
     # re-define
     model_chp_dir = {
         'M3LLM_Llama': './llama2',
+        'M3LLM_Llama3': './llama31b',
         'M3LLM_Qwen': './qwen2',
     }
     if args.model not in model_chp_dir:
@@ -125,7 +126,11 @@ if __name__ == '__main__':
     args.llm_ckp_dir = model_chp_dir[args.model]
     dataset_nvars = {
         'ETTh1.csv': 7,
+        'ETTh2.csv': 7,
+        'ETTm1.csv': 7,
+        'ETTm2.csv': 7,
         'weather.csv': 21,
+        'PEMS04.csv': 921,
         'AWR': 9,
         'AF': 2,
         'BL': 4,
@@ -141,6 +146,9 @@ if __name__ == '__main__':
         print(f'{args.data_path} is not in dataset_nvars')
         exit(0)
     args.n_vars = dataset_nvars[args.data_path]
+    if args.multi_var == False:
+        args.n_vars = 1
+    print(f'n_vars: {args.n_vars}')
     
 
     if args.use_multi_gpu:
