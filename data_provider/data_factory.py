@@ -3,12 +3,15 @@ from torch.utils.data.distributed import DistributedSampler
 
 def data_provider(args, flag):
     if args.multi_var:
-        from data_provider.multivar_data_loader import Dataset_ETT_hour, Dataset_Custom, UEAloader, Dataset_M4, Dataset_Solar, Dataset_TSF, Dataset_TSF_ICL
+        from data_provider.multivar_data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, UEAloader, Dataset_M4, Dataset_Solar, Dataset_TSF, Dataset_TSF_ICL
     else:
-        from data_provider.data_loader import Dataset_ETT_hour, Dataset_Custom, UEAloader, Dataset_M4, Dataset_Solar, Dataset_TSF, Dataset_TSF_ICL
+        from data_provider.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, UEAloader, Dataset_M4, Dataset_Solar, Dataset_TSF, Dataset_TSF_ICL
 
     data_dict = {
         'ETTh1': Dataset_ETT_hour,
+        'ETTh2': Dataset_ETT_hour,
+        'ETTm1': Dataset_ETT_minute,
+        'ETTm2': Dataset_ETT_minute,
         'custom': Dataset_Custom,
         'UEA': UEAloader,
         'm4': Dataset_M4,
