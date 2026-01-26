@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, default=0, help='gpu id')
     parser.add_argument('--llm_ckp_dir', type=str, default='./qwen2', help='llm checkpoints dir')
     parser.add_argument('--dataset', type=str, default='weather', 
-                        help='dataset to preprocess, options:[ETTh1, electricity, weather, traffic]')
+                        help='dataset to preprocess, options:[ETTh1, electricity, weather, traffic, PEMS]')
     parser.add_argument('--multi_var', action='store_true', help='multi var', default=False)
     parser.add_argument('--flag', type=str, default='train', help='train/val/test')
 
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     pred_len = 96
     
     assert args.dataset in [
-        'ETTh1', 'ETTh2', 'ETTm1', 'ETTm2', 'electricity', 'weather', 'traffic', 
+        'ETTh1', 'ETTh2', 'ETTm1', 'ETTm2', 'electricity', 'weather', 'traffic', 'PEMS', 
         'classification_instruct', 'AWR', 'AF', 'BL', 'CR', 'ER', 'FM', 'RS', 'SRS2', 'SWJ', 'UWG'
     ]
     if args.dataset == 'ETTh1':
@@ -124,6 +124,12 @@ if __name__ == '__main__':
             root_path='./all_datasets/Classification/UEA/UWaveGestureLibrary',
             size=[seq_len, label_len, pred_len],
             flag=args.flag
+        )
+    elif args.dataset == 'PEMS':
+        data_set = Dataset_Preprocess(
+            root_path='./dataset/PEMS/',
+            data_path='PEMS04.csv',
+            size=[seq_len, label_len, pred_len]
         )
     elif args.dataset == 'classification_instruct':
         data_set = Dataset_Preprocess_Classification_Instruct()
