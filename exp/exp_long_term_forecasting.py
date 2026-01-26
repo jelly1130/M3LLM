@@ -107,7 +107,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         path = os.path.join(self.args.checkpoints, setting)
         if wandb is not None: # NOTE( ): 避免wandb生成过多文件
-            path = os.path.join(self.args.checkpoints, f'wandb_{self.args.data_path}')
+            cuda_id = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+            path = os.path.join(self.args.checkpoints, f'wandb_{self.args.data_path}_{cuda_id}')
             best_test_loss = None
         if (self.args.use_multi_gpu and self.args.local_rank == 0) or not self.args.use_multi_gpu:
             if not os.path.exists(path):
