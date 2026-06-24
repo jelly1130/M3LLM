@@ -280,6 +280,7 @@ class Model(nn.Module):
                 del self.add_scale
                 self.add_scale1 = nn.Parameter(torch.zeros([]))
                 self.add_scale2 = nn.Parameter(torch.zeros([]))
+                self.interaction_le_scale = nn.Parameter(torch.zeros([]))
                 hidden_dim_for_cross = int(max(np.sqrt(self.n_vars) + 1, 2))
                 if self.mix_embeds_type == 'v8':
                     self.hidden_vector_for_cross = torch.randn(self.n_vars, hidden_dim_for_cross).to(self.device)
@@ -393,19 +394,19 @@ class Model(nn.Module):
 
         return x_enc, x_mark_enc
 
-    def _target_aware_bi_interaction(self, times_embeds, bs, n_vars, token_num):
+    def _target_aware_bi_interaction(self, interaction_embeds, bs, n_vars, token_num):
         """
         Target-aware pair-wise interaction used by v12/v13.
 
         Args:
-            times_embeds: [bs * n_vars, token_num, hidden_dim]
+            interaction_embeds: [bs * n_vars, token_num, hidden_dim]
 
         Returns:
             bie: [bs * n_vars, token_num, hidden_dim]
         """
-        hidden_dim = times_embeds.shape[-1]
+        hidden_dim = interaction_embeds.shape[-1]
         # [bs, token_num, n_vars, hidden_dim]
-        source_embeds = times_embeds.reshape(bs, n_vars, token_num, hidden_dim).permute(0, 2, 1, 3)
+        source_embeds = interaction_embeds.reshape(bs, n_vars, token_num, hidden_dim).permute(0, 2, 1, 3)
 
         bie_outputs = []
         for hidden_vector in self.hidden_vector_for_cross_list:
@@ -425,21 +426,22 @@ class Model(nn.Module):
         """
         Fuse temporal embeddings, language embeddings, and target-aware BIE.
         v13: TE + BIE + LE using AttnSum.
-        v12: TE + BIE using AttnSum, following the LLaMA-side v12 design.
+        v12: BIE + variable-aware TE/LE using AttnSum, following the LLaMA-side v12 design.
         """
         if self.mix_embeds_type not in ['v12', 'v13']:
             return times_embeds
 
         ori_times_embeds = times_embeds
-        bie = self._target_aware_bi_interaction(times_embeds, bs, n_vars, token_num)
+        variable_aware_embeds = ori_times_embeds + self.interaction_le_scale * x_mark_enc
+        bie = self._target_aware_bi_interaction(variable_aware_embeds, bs, n_vars, token_num)
 
         if self.mix_embeds_type == 'v13':
             language_bie = self.fusion(self.add_scale1 * bie, self.add_scale2 * x_mark_enc)
             return self.fusion(ori_times_embeds, language_bie)
 
-        # v12 keeps the LLaMA-side fusion idea: fuse BIE with the original
-        # temporal embedding without injecting the language embedding again.
-        return self.fusion(self.add_scale1 * bie, self.add_scale2 * ori_times_embeds)
+        # v12 keeps the LLaMA-side fusion idea, but uses the language-aware
+        # temporal embedding so that LE also participates in the final token.
+        return self.fusion(self.add_scale1 * bie, variable_aware_embeds)
 
     def _build_multivariate_attention_mask(self, batch_size, token_num, n_vars, device, dtype):
         """
